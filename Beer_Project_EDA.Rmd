@@ -1,0 +1,958 @@
+---
+title: "Beer Project - EDA"
+author: "Elyjiah Potter, Mike Gebhardt, Triston Hudgins"
+date: "10/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(png)
+library(ggimage)
+library(magick)
+library(naniar)
+library(plotly)
+library(class)
+library(caret)
+library(e1071)
+library(maps)
+library(mapproj)
+library(usmap)
+library(maptools)
+library(rgdal)
+```
+
+## Question 1: How many breweries are present in each state?
+
+<br>
+
+##### Pull Data and Images
+```{r}
+#Beer Data
+beers = read.csv("/Users/elyjiahpotter/Desktop/DDS - Project 1/Beers.csv")
+
+#Brewery Data
+breweries = read.csv("/Users/elyjiahpotter/Desktop/DDS - Project 1/Breweries.csv")
+
+# Budweiser Logo=
+img = "/Users/elyjiahpotter/Desktop/DDS - Project 1/bud_logo copy 2.jpeg"
+img2 = "/Users/elyjiahpotter/Desktop/DDS - Project 1/bud_logo copy 2.jpeg"
+```
+
+<br>
+
+<br>
+
+##### Aggregate Breweries and Plot Data
+
+```{r}
+# How many breweries?
+
+state_data = breweries %>%
+  group_by(State) %>%
+  summarize(Count = n()) %>%
+  arrange(Count)
+
+#Plot
+
+
+p = state_data %>%
+  ggplot(aes(x = reorder(State,Count), y = Count)) +
+  geom_bar(stat = "identity",
+           fill = "dodgerblue4",
+                 alpha = 0.95) +
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5, 
+                                   hjust = 1,
+                                   size = 8)) +
+  theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()) +
+  ggtitle("Breweries per State") +
+  theme(plot.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text=element_text(size = 10),
+        axis.title=element_text(size=12,face="bold")) +
+  xlab("US States") +
+  ylab("Number of Breweries") +
+  geom_text(aes(label = Count, vjust = -0.75), size = 2.5, color = "black")
+
+ggbackground(p, img)
+
+```
+
+<br>
+
+<br>
+
+
+## Question 2: Merge beer data with the breweries data. Print the first 6 observations and the last six observations to check the merged file.
+
+```{r}
+
+#Create Key
+colnames(beers)[5] = "Brew_ID"
+
+#Join data on key
+beer_data = inner_join(breweries, beers, by = "Brew_ID")
+
+#Rename column names and make brewery a factor
+colnames(beer_data) = c("Brew_ID", "Brewery", "City", "State", "Beer", "Beer_ID", "ABV", "IBU", "Style", "Ounces")
+beer_data$Brewery = factor(beer_data$Brewery)
+
+#Print first and last 6 rows
+head(beer_data, n = 6)
+tail(beer_data, n = 6)
+```
+
+<br>
+
+<br>
+
+
+## Question 3: Address the missing values in each column.
+
+```{r}
+#Find missing items
+gg_miss_var(beer_data) 
+
+#A large portion of beers do not have IBU listed, so we will create a separate data set for IBU and ABV comparisons
+full_beer_data = beer_data
+
+beer_data = beer_data %>%
+  filter(!is.na(IBU) & !is.na(ABV))
+
+gg_miss_var(beer_data)
+```
+
+<br>
+
+<br>
+
+## Question 4: Compute the median alcohol content and international bitterness unit for each state. Plot a bar chart to compare.
+
+<br>
+
+##### Compute Medians
+```{r}
+med_chart = beer_data %>%
+  group_by(State) %>%
+  summarize("Median_ABV" = median(ABV), 
+            "Median_IBU" = median(IBU))
+
+med_chart
+```
+
+<br>
+
+<br>
+
+##### Plot Data
+
+```{r}
+p_abv = med_chart %>%
+  ggplot(aes(x = reorder(State,Median_ABV), y = Median_ABV)) +
+  geom_bar(stat = "identity",
+           fill = "dodgerblue4",
+           color = "dodgerblue4",
+           alpha = 0.95,
+           width = .75) +
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5, 
+                                   hjust = 1)) +
+  theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()) +
+  #ggtitle("Median ABV by State") +
+  theme(plot.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text=element_text(size = 10),
+        axis.title=element_text(size=12,face="bold")) +
+  xlab("State") +
+  ylab("ABV")  +
+  coord_cartesian(ylim=c(0.04,0.075)) 
+
+ggbackground(p_abv, img)
+
+p_abv = med_chart %>%
+  ggplot(aes(x = reorder(State,Median_IBU), y = Median_IBU)) +
+  geom_bar(stat = "identity",
+           fill = "dodgerblue4",
+           color = "dodgerblue4",
+           alpha = 0.95,
+           width = .75) +
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5, 
+                                   hjust = 1)) +
+  theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()) +
+  #ggtitle("Median IBU by State") +
+  theme(plot.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text=element_text(size = 10),
+        axis.title=element_text(size=12,face="bold")) +
+  xlab("State") +
+  ylab("IBU") +
+  coord_cartesian(ylim=c(20,60))
+
+ggbackground(p_abv, img)
+```
+
+<br>
+
+<br>
+
+## Question 5:  Which state has the maximum alcoholic (ABV) beer? Which state has the most bitter (IBU) beer?
+
+<br>
+
+##### Address Question
+
+```{r}
+max_chart = beer_data %>%
+  group_by(State) %>%
+  summarize("Max_ABV" = max(ABV), 
+            "Max_IBU" = max(IBU))
+
+#Max ABV
+max_chart[which.max(max_chart$Max_ABV),]
+
+#Max IBU
+max_chart[which.max(max_chart$Max_IBU),]
+
+
+
+```
+
+<br>
+
+##### Plot Data
+
+```{r}
+p = max_chart %>%
+  ggplot(aes(x = Max_IBU, y = Max_ABV, color = State)) +
+  geom_point() +
+  coord_cartesian(ylim=c(0.04,.13)) +
+  ggtitle("Max IBU and ABV by State") +
+  xlab("Max ABV") +
+  ylab("Max IBU")
+
+ggplotly(p)
+
+
+```
+
+<br>
+
+<br>
+
+## Question 6: Comment on the summary statistics and distribution of the ABV variable.
+
+<br>
+
+##### Summarize Data
+```{r}
+summary(beer_data$ABV)
+```
+
+<br>
+
+##### Plot Data
+```{r}
+
+p_abv = beer_data %>%
+  ggplot(aes(x = ABV)) +
+  geom_histogram(stat = "count",
+                 fill = "dodgerblue4",
+           color = "dodgerblue4",
+           alpha = 0.95) +
+  theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()) +
+  ggtitle("ABV Distribution") +
+  theme(plot.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text=element_text(size = 10),
+        axis.title=element_text(size=12,face="bold")) +
+  xlab("ABV") +
+  ylab("Count")
+
+ggbackground(p_abv, img)
+
+p_abv = beer_data %>%
+  ggplot(aes(x = ABV)) +
+  geom_boxplot(fill = "dodgerblue4",
+           color = "dodgerblue4",
+           alpha = 0.95) +
+  theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()) +
+  ggtitle("ABV Distribution") +
+  theme(plot.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text=element_text(size = 10),
+        axis.title=element_text(size=12,face="bold")) +
+  xlab("ABV") +
+  ylab("Count")
+
+ggbackground(p_abv, img)
+```
+
+<br>
+
+### Findings
+
+* The distribution of ABV is right skewed with a mean of 0.05991 and a median of 0.057.
+
+* 50% of the data is nested between the values .05 and .068
+
+<br>
+
+<br>
+
+
+## Question 7: Is there an apparent relationship between the bitterness of the beer and its alcoholic content? Draw a scatter plot.  Make your best judgment of a relationship and EXPLAIN your answer.
+
+<br>
+
+##### Plot Data
+
+```{r}
+p = beer_data %>%
+  ggplot(aes(x = IBU, y = ABV)) +
+  geom_point(position = "jitter",
+           color = "dodgerblue4",
+           color = "dodgerblue4",
+           alpha = 0.95) +
+  geom_smooth(method = lm, color = "darkgoldenrod1") +
+  theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()) +
+  ggtitle("IBU vs ABV") +
+  theme(plot.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text=element_text(size = 10),
+        axis.title=element_text(size=12,face="bold")) +
+  xlab("IBU") +
+  ylab("ABV")
+
+ggbackground(p, img)
+```
+
+<br>
+
+### Findings
+
+* There appears to be a positive correlation between bitterness (IBU) and alcohol content (ABV).
+
+* In general, as IBU increases, we also see an increase in ABV. This can be seen with higher clarity with the included linear model regression line
+
+<br>
+
+<br>
+
+
+## Question 8: Budweiser would also like to investigate the difference with respect to IBU and ABV between IPAs (India Pale Ales) and other types of Ale (any beer with “Ale” in its name other than IPA) - Use KNN to inestigate and provide statistical evidence.  
+
+<br>
+
+##### Filter Data
+
+```{r}
+ales = beer_data %>%
+  mutate(Ale = case_when(
+    grepl("IPA",Style)|grepl("India Pale",Style) ~ "IPA",
+    !grepl("IPA",Style)&grepl("Ale",Style) ~ "Ale")) %>% 
+  filter(!is.na(Ale))
+```
+
+<br>
+
+##### Plot Data and Create Initial Model
+
+```{r}
+splitPerc = 0.75
+
+trainInices = sample(1:dim(ales)[1], round(splitPerc * dim(ales)[1]))
+
+train = ales[trainInices,]
+test = ales[-trainInices,]
+
+p_ale = ales %>%
+  ggplot(aes(x = IBU, y = ABV, color = Ale)) +
+  geom_point(position = "jitter") +
+  ggtitle("Ales - IBU vs ABV") +
+  theme(plot.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text=element_text(size = 10),
+        axis.title=element_text(size=12,face="bold")) +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+
+ggbackground(p_ale, img2)
+
+
+
+# K = 3
+classifications = knn(train[,c(7,8)], test[,c(7,8)], train$Ale, prob = TRUE, k = 3)
+table(classifications, test$Ale)
+confusionMatrix(table(classifications,test$Ale))
+
+```
+
+<br>
+
+<br>
+
+##### Normalize Data to Account for Scale Issue
+
+```{r}
+ale_scaled = data.frame(ZABV = scale(ales$ABV), ZIBU = scale(ales$IBU), Ale = ales$Ale)
+```
+
+<br>
+
+<br>
+
+##### Find Ideal K Value
+
+```{r}
+iterations = 1000 
+numks = 100
+
+masterAcc = matrix(nrow = iterations, ncol = numks)
+  
+for(j in 1:iterations)
+{
+accs = data.frame(accuracy = numeric(numks), k = numeric(numks))
+trainIndices = sample(1:dim(ale_scaled)[1],round(splitPerc * dim(ale_scaled)[1]))
+train = ale_scaled[trainIndices,]
+test = ale_scaled[-trainIndices,]
+for(i in 1:numks)
+{
+  classifications = knn(train[,c(1,2)],test[,c(1,2)],train$Ale, prob = TRUE, k = i)
+  table(classifications,test$Ale)
+  CM = confusionMatrix(table(classifications,test$Ale))
+  masterAcc[j,i] = CM$overall[1]
+}
+}
+MeanAcc = colMeans(masterAcc)
+plot(seq(1,numks,1),MeanAcc, type = "l")
+```
+
+<br>
+
+##### Findings
+
+* Ideal K value is 20
+
+<br>
+
+<br>
+
+##### Test New Model on Normalized Dataset with ideal K value
+
+```{r}
+
+ale_scaled = data.frame(ZABV = scale(ales$ABV), ZIBU = scale(ales$IBU), Ale = ales$Ale)
+
+
+splitPerc = 0.70
+
+trainInices = sample(1:dim(ale_scaled)[1], round(splitPerc * dim(ale_scaled)[1]))
+
+train = ale_scaled[trainInices,]
+test = ale_scaled[-trainInices,]
+
+# K = 20
+classifications = knn(train[,c(1,2)], test[,c(1,2)], train$Ale, prob = TRUE, k = 20)
+table(classifications, test$Ale)
+confusionMatrix(table(classifications,test$Ale))
+```
+
+<br>
+
+<br>
+
+##### Create Random Dataset to Test for Analysis Trends of IPA and Ale
+
+```{r}
+#Random Data Set
+set.seed(13)
+
+ABV_min = 0.027 * 1000
+ABV_max = 0.125 * 1000
+IBU_min = 4
+IBU_max = 138
+
+ABV = c(sample(ABV_min : ABV_max, 10000, rep=TRUE))
+ABV = ABV/1000
+  
+IBU = c(sample(IBU_min : IBU_max, 10000, rep=TRUE))
+IBU = IBU
+
+random_beer = data.frame(cbind(ABV, IBU))
+random_beer$ABV = scale(random_beer$ABV)
+random_beer$IBU = scale(random_beer$IBU)
+```
+
+<br>
+
+<br>
+
+##### Run Random Dataset through Model and Illustrate Predictions
+
+```{r}
+classifications = knn(ale_scaled[,c(1,2)], random_beer[,c(1,2)], ale_scaled$Ale, k = 20)
+
+
+ABV_class = data.frame(table(random_beer$ABV,classifications))
+colnames(ABV_class) = c("ABV", "Classification", "Freq")
+IBU_class = data.frame(table(random_beer$IBU,classifications))
+colnames(IBU_class) = c("IBU", "Classification", "Freq")
+
+#Illustrate distribution of predictions
+
+ABV_class$ABV = as.numeric(as.matrix(ABV_class)[,1]) 
+
+p_abv = ABV_class %>%
+  ggplot(aes(x = ABV, y = Freq, fill = Classification)) +
+  stat_smooth(geom = "area", method = "loess", span = .7, alpha = .5) +
+  ggtitle("ABV Classification Distribution") +
+  xlim(-1.2,1.2) +
+  theme(plot.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text=element_text(size = 10),
+        axis.title=element_text(size=12,face="bold")) +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+ggbackground(p_abv, img2)
+
+
+IBU_class$IBU = as.numeric(as.matrix(IBU_class)[,1]) 
+
+p_ibu = IBU_class %>%
+  ggplot(aes(x = IBU, y = Freq, fill = Classification)) +
+  stat_smooth(geom = "area", method = "loess", span = .7, alpha = .5) +
+  ylim(0,80) +
+  xlim(-1,1) +
+  ggtitle("IBU Classification Distribution") +
+  theme(plot.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text=element_text(size = 10),
+        axis.title=element_text(size=12,face="bold")) +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+ggbackground(p_ibu, img2)
+
+```
+
+<br>
+
+<br>
+
+##### Run a t-Test on original Data: Address Assumptions
+```{r}
+#Normality
+
+p = ales %>%
+  ggplot(aes(x = IBU, fill = Ale)) +
+  geom_histogram(bins = 20) +
+  facet_wrap(~Ale) +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  ggtitle("Testing for IBU Normality")
+ggbackground(p, img)
+
+
+p = ales %>%
+  ggplot(aes(x = ABV, fill = Ale)) +
+  geom_histogram(bins = 20) +
+  facet_wrap(~Ale) +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  ggtitle("Testing for ABV Normality")
+ggbackground(p, img)
+
+# Equal Variance
+
+p = ales %>%
+  ggplot(aes(x = IBU, fill = Ale)) +
+  geom_boxplot() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  ggtitle("Testing for IBU Variance")
+ggbackground(p, img)
+
+p = ales %>%
+  ggplot(aes(x = ABV, fill = Ale)) +
+  geom_boxplot() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  ggtitle("Testing for ABV Variance")
+ggbackground(p, img)
+```
+
+<br>
+
+##### Findings
+
+* Distributions are both right skewed, but fairly normal
+
+* Variance is not identical, but not drastically different
+
+* Independence may be assumed
+
+* We will continue with a Welch's t-Test
+
+<br>
+
+<br>
+
+##### t-Test
+```{r}
+t.test( x = ales %>% 
+          filter(Ale == "IPA") %>%
+          select(ABV),
+        y = ales %>% 
+          filter(Ale == "Ale") %>%
+          select(ABV),
+        alternative = "two.sided",
+        var.equal = FALSE,
+        conf.level = 0.95)
+
+
+t.test( x = ales %>% 
+          filter(Ale == "IPA") %>%
+          select(IBU),
+        y = ales %>% 
+          filter(Ale == "Ale") %>%
+          select(IBU),
+        alternative = "two.sided",
+        var.equal = FALSE,
+        conf.level = 0.95)
+```
+
+<br>
+
+##### ABV Conclusion
+
+* We have sufficient evidence to assert that the average alcohol content of an IPA is greater than another type of ale (p-value < 0.0001, Welch's two sided t-test). The 95% confidence interval for the difference in averages is (0.011, 0.014)
+
+##### IBU Conclusion
+
+* We have sufficient evidence to assert that the average bitterness of an IPA is greater than another type of ale (p-value < 0.0001, Welch's two sided t-test). The 95% confidence interval for the difference in IBU averages is roughly (35, 40)
+
+
+
+## Question 9: Find one other useful inference from the data that you feel Budweiser may be able to find value in.  You must convince them why it is important and back up your conviction with appropriate statistical evidence. 
+
+#### IPAs are currently one of the most popular styles of beer, and Budweiser does not include IPAs in their collection. Based on Budweiser Brewery locations and prevelance of other IPA breweries in the area, does it make sense for Budweiser to begin making IPAs in certain locations, or is the market too saturated? If so, where? 
+
+<br>
+
+<br>
+
+##### Create IPA Dataset
+```{r}
+
+IPA = full_beer_data %>%
+  mutate(IPA_Count = case_when(
+    grepl("IPA",Style)|grepl("India Pale",Style) ~ 1,
+    !grepl("IPA",Style)&!grepl("India Pale",Style) ~ 0))
+```
+
+<br>
+
+<br>
+
+##### Merge with State Data for Plotting
+
+```{r}
+state_data = statepop %>%
+  select(fips, abbr, full) %>%
+  arrange(abbr)
+
+statebrew = IPA %>%
+  select(State, Brewery, IPA_Count) %>%
+  group_by(State) %>%
+  summarize(Breweries = sum(IPA_Count)) %>%
+  arrange(State)
+
+beermap = cbind(statebrew, state_data) %>%
+  select(fips, State, Breweries, full)
+```
+
+<br>
+
+<br>
+
+##### Budweiser Brewery Locations
+```{r}
+Cbus = tibble(
+  long = c(-82.9988),
+  lat = c(39.9612),
+  names = c("Columbus"))
+Cbus = usmap_transform(Cbus)
+
+Bville = tibble(
+  long = c(-76.3327),
+  lat = c(43.1587),
+  names = c("Baldwinsville"))
+Bville = usmap_transform(Bville)
+
+Cville = tibble(
+  long = c(-84.7999),
+  lat = c(34.1651),
+  names = c("Cartersville"))
+Cville = usmap_transform(Cville)
+
+LA = tibble(
+  long = c(-118.2437),
+  lat = c(34.0522),
+  names = c("Los Angeles"))
+LA = usmap_transform(LA)
+
+Newark = tibble(
+  long = c(-74.1724),
+  lat = c(40.7357),
+  names = c("Newark"))
+Newark = usmap_transform(Newark)
+
+Wburg = tibble(
+  long = c(-76.7075),
+  lat = c(37.2707),
+  names = c("Williamsburg"))
+Wburg = usmap_transform(Wburg)
+
+Ffield = tibble(
+  long = c(-122.0405),
+  lat = c(38.2492),
+  names = c("Fairfield"))
+Ffield = usmap_transform(Ffield)
+
+FCol = tibble(
+  long = c(-105.0844),
+  lat = c(40.5853),
+  names = c("Fort Collins"))
+FCol = usmap_transform(FCol)
+
+Houston = tibble(
+  long = c(-95.3698),
+  lat = c(29.7604),
+  names = c("Houston"))
+Houston = usmap_transform(Houston)
+
+Jville = tibble(
+  long = c(-81.6557),
+  lat = c(30.3322),
+  names = c("Jacksonville"))
+Jville = usmap_transform(Jville)
+
+Mrry = tibble(
+  long = c(-71.4948),
+  lat = c(42.8679),
+  names = c("Jacksonville"))
+Mrry = usmap_transform(Mrry)
+
+Stlouis = tibble(
+  long = c(-90.1994),
+  lat = c(38.6270),
+  names = c("Jacksonville"))
+Stlouis = usmap_transform(Stlouis)
+```
+
+<br>
+
+<br>
+
+##### Plot Data in US Heatmap
+```{r}
+plot_usmap(data = beermap, values = "Breweries", color = "tan3") + 
+  scale_fill_continuous(
+    low = "white", high = "darkolivegreen4", name = "Breweries", label = scales::comma) +
+  theme(legend.position = "right") +
+  labs(title = "IPA Brewers by State") + 
+  theme(panel.background = element_rect(color = "gray", fill = "lightsteelblue3")) +
+  theme(plot.title = element_text(size = 20, face = "bold")) + 
+  geom_point(data = Cbus, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_point(data = Bville, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_point(data = Cville, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_point(data = LA, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_point(data = Newark, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_point(data = Wburg, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_point(data = Ffield, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_point(data = FCol, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_point(data = Houston, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_point(data = Jville, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_point(data = Mrry, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_point(data = Stlouis, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3)
+```
+
+<br>
+
+<br>
+
+##### Findings
+
+* Markets in California and Colorado locations appear oversaturated - it may not make sense to introduce a new Budweiser IPA into these brewing locations
+
+* The Texas, Midwest, New England, and Virginia locations all have moderate counts of IPA breweries in the area. This may indicate interest in IPAs by the local populace, and it may be worth investigating further to see if it makes sense to introduce a Budweiser IPA.
+
+* The Georgia and Florida Budweiser Breweries are in an area where wither there are almost __no__ IPA breweries, or they are adjacent to this market. It would be worth investigating demand for IPAs in this area. If it exists, it would be strongly recommended to introduce a new Budweiser IPA into these locations to take advantage of this opportunity.
+
+
+#### Plot South / Southeast Only
+
+```{r}
+plot_usmap(include = .south_region, data = beermap, values = "Breweries", color = "tan3") + 
+  scale_fill_continuous(
+    low = "white", high = "darkolivegreen4", name = "Breweries", label = scales::comma) +
+  theme(legend.position = "right") +
+  labs(title = "IPA Brewers: Southeastern States") + 
+  theme(panel.background = element_rect(color = "gray", fill = "lightsteelblue3")) +
+  theme(plot.title = element_text(size = 20, face = "bold")) +
+  geom_point(data = Cville, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_text(data = Cville, aes(x = long.1, y = lat.1, label = names), hjust = 0.5, vjust = 1.5, nudge_x = 4, color = "black") +
+  geom_point(data = Wburg, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_text(data = Wburg, aes(x = long.1, y = lat.1, label = names), hjust = 0.5, vjust = 1.5, nudge_x = 4, color = "black") +
+  geom_point(data = Houston, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_text(data = Houston, aes(x = long.1, y = lat.1, label = names), hjust = 0.5, vjust = 1.5, nudge_x = 4, color = "black") +
+  geom_point(data = Jville, aes(x = long.1, y = lat.1), shape = 21, color = "black", fill = "firebrick2", size = 3) +
+  geom_text(data = Jville, aes(x = long.1, y = lat.1, label = names), hjust = 0.5, vjust = 1.5, nudge_x = 4, color = "black") 
+```
+
+<br>
+
+<br>
+
+##### Findings
+
+* The introduction of an IPA in a brewery location like Cartersville, GA would be ideal. IPAs are wildly underrepresented in this market.
+
+<br>
+
+<br>
+
+##### Investigate Beer trends in the Southeast 
+
+```{r}
+
+# Filter by beers in the southeastern US - Note that IPA dataset is used, but that this is a full beer dataset modified to include a binary column for IPA designation
+
+SEBeerdf = IPA %>%
+              filter(grepl("FL",State)|
+                       grepl("AL",State)|
+                       grepl("GA",State)|
+                       grepl("MS",State)|
+                       grepl("SC",State)|
+                       grepl("NC",State)|
+                       grepl("TN",State)|
+                       grepl("MD",State)|
+                       grepl("VA",State)|
+                       grepl("KY",State))
+
+head(SEBeerdf)
+```
+
+```{r}
+
+#Facet Wrap by State for a comparison of ABV vs IBU in this region
+SEBeerdf %>%
+      ggplot(aes(x = IBU, y = ABV, color = State)) + 
+  geom_point() + 
+  labs(title = "Bitterness vs. Alcohol Content", 
+       x = "Bitterness", 
+       y = "Alcohol Content") + 
+  facet_wrap(~State)
+
+
+#Histogram shows us that the most popular ale styles are IPA and APA
+
+SEBeerdf %>%
+  ggplot(aes(x = Style)) + geom_histogram(stat="count") + labs(title = "SE Region Count by Style", x = "Style", y = "Count") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+#Filter for American IPA
+
+TestBeer <- c("American IPA")
+SEMarket <- SEBeerdf %>%
+              filter(Style == TestBeer)
+
+
+
+#We observed an outlier with high IBU and low ABV. Further investigation revealed that this IBU count may have been an error, since the brewery's website lists it as significantly lower. We removed this data point.
+
+SEMarket = SEMarket %>%
+                filter(!grepl("Troopers Alley IPA",Beer))
+
+head(SEMarket)
+
+#Dot Plot of ABV vs IBU
+
+p = SEMarket %>%
+    ggplot(aes(x = IBU, y = ABV)) +
+  geom_point(size = 3, 
+             fill = "dodgerblue4", 
+             color = "dodgerblue4") + 
+  labs(title = "IPA Bitterness vs. Alcohol Content in the South East Region (US)", 
+       x = "Bitterness", 
+       y = "Alcohol Content") +
+    geom_smooth(method = lm, 
+                color = "darkgoldenrod1") +
+    theme(panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank())
+  
+ggbackground(p, img)
+
+#Facet Wrap by State Dot Plot of ABV vs IBU
+SEMarket %>%
+  ggplot(aes(x = IBU, y = ABV)) + 
+  geom_point(fill = "dodgerblue4", 
+             color = "dodgerblue4") + 
+  labs(title = "IPA Bitterness vs. Alcohol Content in the South East Region (US)", 
+       x = "Bitterness", 
+       y = "Alcohol Content") + 
+  facet_wrap(~State)
+
+
+#Median IBU for the SE Region
+SEMarket %>%
+  filter(!is.na(IBU)) %>%
+  summarise_at(vars(IBU), list(Median_IBU = median))
+
+#Median IBU for the SE Region by State
+SEMarket %>%
+  filter(!is.na(IBU)) %>%
+  group_by(State) %>%
+  summarise_at(vars(IBU), list(Median_IBU = median))
+
+#Median ABV for the SE Region
+SEMarket %>%
+  filter(!is.na(ABV)) %>%
+  summarise_at(vars(ABV), list(Median_ABV = median))
+
+#Median ABV for the SE Region by State
+SEMarket %>%
+  filter(!is.na(ABV)) %>%
+  group_by(State) %>%
+  summarise_at(vars(ABV), list(Median_ABV = median))
+```
+
+##### Conclusion
+
+Given the datasets Beers.csv and Breweries.csv we were tasked to analyze several aspects of the data.
+
+Our first task was to determine a brewery count by State. We have demonstrated this with a summary of the data as a histogram for a visual reference. We found that there were large numbers of breweries in the western region of the United States and that the top ten states with the highest brewery counts accounted for over 50% of total breweries.
+
+A deeper analysis required that the two datasets provided be merged. The Brewery_ID column from the beers.csv dataset provided the best option to complete this.
+
+After merging the datasets, missing or NA values were removed to effectively study any relationships between the data points.  We noted that in doing so, the highest ABV value was removed from our analysis.
+
+Working with the merged and complete values dataset, we computed the median ABV and IBU for each state and presented the results in a bar graph.
+
+It was found that Oregon’s Astoria Brewing Company out of Astoria has the Bitter Bitch Imperial IPA with 138 IBUs and that Kentucky’s Against the Grain Brewery out of Louisville has the London Balling English Barleywine with an ABV of 12.5%.
+
+We then showed summary statistics of the ABV values.  There was a slight right skew to the values but Budweiser’s ABV proved close to the median.
+
+Showing a scatterplot of ABV vs IBU provided strong evidence of a linear relationship.  We fit a linear regression line to emphasize our 
+findings.
+
+Basing further discovery on the linear relationship, an optimized KNN model was created to classify IPAs vs other Ales in the dataset.  The model favored IPAs as the higher ABV and IBU beer.  This relationship is crucial when considering the explosive popularity of IPAs in recent years.
+
+Outside exploration demonstrated massive potential for an IPA market in the southeast region of the United States.  Consumption of alcoholic beverages is relatively high in Georgia and a regional exploration of breweries proved little IPA options, especially when disregarding Florida. With these considerations, it is highly recommended that Budweiser utilize existing resources in the region to test an IPA; an extremely desirable beer in a region that is relatively untapped.
+
+  
