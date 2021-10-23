@@ -1,5 +1,4 @@
 # Cerberus
-Cerberus team folder for project documentation
 
 Cerberus was tasked with exploring various aspects of breweries throughout the United States utilizing the beers.csv and the breweries.csv datasets provided.
 
