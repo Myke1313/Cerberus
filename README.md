@@ -4,7 +4,7 @@ Cerberus was tasked with exploring various aspects of breweries throughout the U
 The primary questions of interest were as follows:
 
 1.	What is the count of breweries in each state?
-2.	What I the median alcohol content and international bitterness unit for each state?
+2.	What is the median alcohol content and international bitterness unit for each state?
 3.	Which state has the beer with the highest alcohol content and which state has the beer with the highest international bitterness unit?
 4.	Show summary statistics for the ABV data
 5.	What is the relationship between bitterness and alcohol content?
